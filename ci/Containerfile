@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/hi/go:latest-fips-builder@sha256:9b159a6371ac623f7a9170459efd2a3d96ab34ca37c3fcf215043865e1a40d0c
+FROM registry.access.redhat.com/hi/go:latest-fips-builder@sha256:8b2ff041651f118890d61393ed362b9e6a9f36aaaa643b546dc5d7b992f6a354
 
 USER root
 
