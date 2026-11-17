@@ -37,7 +37,6 @@ kubeApplier:
     dynamoPollInterval: ""
     dynamoRelistInterval: ""
     dynamoLookbackMax: ""
-    informerResyncPeriod: ""
 
   serviceAccount:
     name: kube-applier

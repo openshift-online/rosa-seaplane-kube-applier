@@ -68,20 +68,15 @@ spec:
             {{- end }}
             {{- with .Values.kubeApplier.config.dynamoLookbackMax }}
             {{- if . }}
-            - --dynamo-lookback-max={{ . }}
-            {{- end }}
-            {{- end }}
-            {{- with .Values.kubeApplier.config.informerResyncPeriod }}
-            {{- if . }}
-            - --informer-resync-period={{ . }}
+            - --dynamo-max-lookback={{ . }}
             {{- end }}
             {{- end }}
           ports:
             - name: metrics
-              containerPort: {{ trimPrefix ":" .Values.kubeApplier.config.metricsListenAddress | int }}
+              containerPort: {{ include "kube-applier.listenPort" .Values.kubeApplier.config.metricsListenAddress }}
               protocol: TCP
             - name: healthz
-              containerPort: {{ trimPrefix ":" .Values.kubeApplier.config.healthzListenAddress | int }}
+              containerPort: {{ include "kube-applier.listenPort" .Values.kubeApplier.config.healthzListenAddress }}
               protocol: TCP
           livenessProbe:
             httpGet:

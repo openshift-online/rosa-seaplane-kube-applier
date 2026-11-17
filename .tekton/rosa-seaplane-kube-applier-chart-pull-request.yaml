@@ -129,8 +129,8 @@ spec:
     workspaces:
     - name: git-auth
       optional: true
-    taskRunTemplate:
-      serviceAccountName: build-pipeline-rosa-seaplane-kube-applier
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-rosa-seaplane-kube-applier
   workspaces:
   - name: git-auth
     secret:
