@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -216,14 +217,38 @@ func TestListenAddressPorts(t *testing.T) {
 }
 
 func TestInvalidListenAddressFailsChartRendering(t *testing.T) {
+	addresses := []struct {
+		address         string
+		validationError string
+	}{
+		{address: "", validationError: "must end with :<port>"},
+		{address: "localhost", validationError: "must end with :<port>"},
+		{address: ":0", validationError: "port must be between 1 and 65535"},
+		{address: ":00000", validationError: "port must be between 1 and 65535"},
+		{address: ":65536", validationError: "port must be between 1 and 65535"},
+		{address: ":99999", validationError: "port must be between 1 and 65535"},
+		{address: ":123456", validationError: "port must be between 1 and 65535"},
+		{address: "127.0.0.1:abc", validationError: "must end with :<port>"},
+		{address: "::1:8081", validationError: "must use a hostname, IPv4 address, or bracketed IPv6 address"},
+		{address: "[::1]8081", validationError: "must end with :<port>"},
+		{address: "[not-ipv6]:8081", validationError: "must use a hostname, IPv4 address, or bracketed IPv6 address"},
+	}
 	for _, field := range []string{"metricsListenAddress", "healthzListenAddress"} {
-		for _, address := range []string{"", "localhost", ":0", ":00000", ":65536", ":99999", ":123456", "127.0.0.1:abc", "::1:8081", "[::1]8081", "[not-ipv6]:8081"} {
-			t.Run(field+"/"+address, func(t *testing.T) {
+		for _, test := range addresses {
+			t.Run(field+"/"+test.address, func(t *testing.T) {
 				root := repoRoot(t)
-				command := exec.Command(helmBinary(), "template", "kube-applier", "charts/kube-applier", "--set-string", "kubeApplier.config."+field+"="+address)
+				command := exec.Command(helmBinary(), "template", "kube-applier", "charts/kube-applier", "--set-string", "kubeApplier.config."+field+"="+test.address)
 				command.Dir = root
-				if output, err := command.CombinedOutput(); err == nil {
-					t.Fatalf("helm template accepted invalid %s %q:\n%s", field, address, output)
+				output, err := command.CombinedOutput()
+				if err == nil {
+					t.Fatalf("helm template accepted invalid %s %q:\n%s", field, test.address, output)
+				}
+				var exitError *exec.ExitError
+				if !errors.As(err, &exitError) {
+					t.Fatalf("helm template could not run for invalid %s %q: %v", field, test.address, err)
+				}
+				if !strings.Contains(string(output), test.validationError) {
+					t.Fatalf("helm template failed for %s %q without the expected validation error %q:\n%s", field, test.address, test.validationError, output)
 				}
 			})
 		}
