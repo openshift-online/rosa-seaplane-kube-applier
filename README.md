@@ -292,8 +292,9 @@ Delete a resource (creates a `DeleteDesire` in DynamoDB):
 
 ### Helm chart
 
-The `kube-applier` chart is maintained under `charts/kube-applier` and published as a Helm OCI
-artifact by Konflux. Run `make helm-test` to lint, render, and package the chart locally. See
+The `kube-applier` chart is maintained under `charts/kube-applier`; chart-specific Konflux
+PipelineRuns are configured to publish it as a Helm OCI artifact after registry onboarding. Run
+`make helm-test` to lint, render, and package the chart locally. See
 [`docs/helm-chart.md`](docs/helm-chart.md) for artifact versioning, consumer usage, and onboarding
 requirements.
 

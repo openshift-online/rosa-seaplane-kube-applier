@@ -13,4 +13,5 @@ keywords:
 maintainers:
   - name: ROSA Regional Platform Team
 sources:
+  - https://github.com/openshift-online/rosa-seaplane/tree/main/argocd/config/management-cluster/kube-applier
   - https://github.com/openshift-online/rosa-seaplane-kube-applier

@@ -21,12 +21,13 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier:{{revision}}
+    value: quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier:chart-{{revision}}
   - name: image-expires-after
     value: 1d
   pipelineSpec:
     description: >-
       Packages and publishes the kube-applier Helm chart as a real Helm OCI artifact from main.
+      Its chart-specific output tag avoids overwriting the controller image at the source revision.
       Chart SemVer is derived from helm-X.Y Git tags and commit distance, falling back to
       0.1.<commit-count>+<short-sha>. The build uses Konflux Trusted Artifacts and the
       digest-pinned official build-helm-chart-oci-ta task.
@@ -43,9 +44,9 @@ spec:
       type: string
       default: ""
     results:
-    - name: CHART_URL
+    - name: IMAGE_URL
       value: $(tasks.build-chart.results.IMAGE_URL)
-    - name: CHART_DIGEST
+    - name: IMAGE_DIGEST
       value: $(tasks.build-chart.results.IMAGE_DIGEST)
     - name: CHAINS-GIT_URL
       value: $(tasks.clone-repository.results.url)
