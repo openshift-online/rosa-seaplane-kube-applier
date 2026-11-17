@@ -64,7 +64,7 @@ ServiceAccount name.
 {{- if gt (len $portString) 5 -}}
 {{- fail (printf "listen address %q port must be between 1 and 65535" $address) -}}
 {{- end -}}
-{{- $port := int $portString -}}
+{{- $port := atoi $portString -}}
 {{- if or (lt $port 1) (gt $port 65535) -}}
 {{- fail (printf "listen address %q port must be between 1 and 65535" $address) -}}
 {{- end -}}

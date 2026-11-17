@@ -90,7 +90,7 @@ helm-test:
 	$(HELM) template kube-applier charts/kube-applier --namespace kube-applier >/dev/null
 	@tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; \
 	  $(HELM) package charts/kube-applier --destination "$$tmp_dir"
-	HELM=$(HELM) go test -tags=helmtest ./cmd
+	HELM=$(HELM) go test -count=1 -tags=helmtest ./cmd
 
 # test-integration runs controller-level tests that need both LocalStack and a
 # Kind cluster. infra-up is run first and is idempotent — existing containers

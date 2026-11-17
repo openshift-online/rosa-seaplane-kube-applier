@@ -192,6 +192,8 @@ func TestListenAddressPorts(t *testing.T) {
 		{name: "IPv6 loopback", address: "[::1]:9093", port: 9093},
 		{name: "IPv6 address", address: "[2001:db8::1]:9094", port: 9094},
 		{name: "IPv6 zone", address: "[fe80::1%eth0]:9095", port: 9095},
+		{name: "leading zero", address: ":01234", port: 1234},
+		{name: "leading zero with eight and nine", address: ":08081", port: 8081},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -214,14 +216,16 @@ func TestListenAddressPorts(t *testing.T) {
 }
 
 func TestInvalidListenAddressFailsChartRendering(t *testing.T) {
-	for _, address := range []string{"", "localhost", ":0", ":65536", ":123456", "127.0.0.1:abc", "::1:8081", "[::1]8081", "[not-ipv6]:8081"} {
-		t.Run(address, func(t *testing.T) {
-			root := repoRoot(t)
-			command := exec.Command(helmBinary(), "template", "kube-applier", "charts/kube-applier", "--set-string", "kubeApplier.config.metricsListenAddress="+address)
-			command.Dir = root
-			if output, err := command.CombinedOutput(); err == nil {
-				t.Fatalf("helm template accepted invalid listen address %q:\n%s", address, output)
-			}
-		})
+	for _, field := range []string{"metricsListenAddress", "healthzListenAddress"} {
+		for _, address := range []string{"", "localhost", ":0", ":00000", ":65536", ":99999", ":123456", "127.0.0.1:abc", "::1:8081", "[::1]8081", "[not-ipv6]:8081"} {
+			t.Run(field+"/"+address, func(t *testing.T) {
+				root := repoRoot(t)
+				command := exec.Command(helmBinary(), "template", "kube-applier", "charts/kube-applier", "--set-string", "kubeApplier.config."+field+"="+address)
+				command.Dir = root
+				if output, err := command.CombinedOutput(); err == nil {
+					t.Fatalf("helm template accepted invalid %s %q:\n%s", field, address, output)
+				}
+			})
+		}
 	}
 }
