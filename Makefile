@@ -1,5 +1,6 @@
 .PHONY: help build desire-tool desirectl \
 	test test-unit test-integration \
+	helm-test \
 	fmt vet lint verify tidy verify-mod \
 	image image-push \
 	infra-up infra-down localstack kind-setup \
@@ -18,6 +19,7 @@ LOCALSTACK_PORT    ?= 4566
 KIND_CLUSTER_NAME  ?= kube-applier-dev
 
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+HELM ?= helm
 
 TOOLS_DIR     := ./hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
@@ -41,6 +43,7 @@ help:
 	@echo "  test-unit        Unit tests (no external services)"
 	@echo "  test-integration Integration tests (starts LocalStack + Kind if needed)"
 	@echo "                   Override kubeconfig with KIND_KUBECONFIG=/path/to/config"
+	@echo "  helm-test        Lint, render, and package the kube-applier chart (requires Helm)"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  fmt              go fmt on all packages"
@@ -81,6 +84,12 @@ test: test-unit test-integration
 test-unit:
 	GOTELEMETRY=off go test -vet=off -race -count=1 ./...
 	cd seaplane-dynamo && GOTELEMETRY=off go test -vet=off -race -count=1 ./...
+
+helm-test:
+	$(HELM) lint charts/kube-applier
+	$(HELM) template kube-applier charts/kube-applier --namespace kube-applier >/dev/null
+	@tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; \
+	  $(HELM) package charts/kube-applier --destination "$$tmp_dir"
 
 # test-integration runs controller-level tests that need both LocalStack and a
 # Kind cluster. infra-up is run first and is idempotent — existing containers

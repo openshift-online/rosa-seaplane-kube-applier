@@ -1,0 +1,138 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/openshift-online/rosa-seaplane-kube-applier?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "true"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "main"
+  labels:
+    appstudio.openshift.io/application: rosa-seaplane-kube-applier
+    appstudio.openshift.io/component: rosa-seaplane-kube-applier
+    pipelines.appstudio.openshift.io/type: build
+  name: rosa-seaplane-kube-applier-chart-on-pull-request
+  namespace: rosa-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier:on-pr-{{revision}}
+  - name: image-expires-after
+    value: 5d
+  - name: chart-version
+    value: 0.1.0-pr.{{revision}}
+  pipelineSpec:
+    description: >-
+      Packages and publishes the kube-applier Helm chart as a real Helm OCI artifact for pull-request
+      validation. The unique SemVer prerelease and on-pr image tag keep PR output separate from
+      main chart versions. The build uses Konflux Trusted Artifacts and the digest-pinned official
+      build-helm-chart-oci-ta task.
+    params:
+    - name: git-url
+      type: string
+    - name: revision
+      type: string
+    - name: output-image
+      type: string
+    - name: image-expires-after
+      type: string
+    - name: chart-version
+      type: string
+      default: ""
+    results:
+    - name: CHART_URL
+      value: $(tasks.build-chart.results.IMAGE_URL)
+    - name: CHART_DIGEST
+      value: $(tasks.build-chart.results.IMAGE_DIGEST)
+    - name: CHAINS-GIT_URL
+      value: $(tasks.clone-repository.results.url)
+    - name: CHAINS-GIT_COMMIT
+      value: $(tasks.clone-repository.results.commit)
+    tasks:
+    - name: init
+      params:
+      - name: enable-cache-proxy
+        value: "false"
+      taskRef:
+        params:
+        - name: name
+          value: init
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-init:0.4.3@sha256:aa7ede4ed5470bc128f62701f3d7ba1fce87ba996eed9f59dd65eb62b8de437e
+        - name: kind
+          value: task
+        resolver: bundles
+    - name: clone-repository
+      params:
+      - name: url
+        value: $(params.git-url)
+      - name: revision
+        value: $(params.revision)
+      - name: ociStorage
+        value: $(params.output-image).git
+      - name: depth
+        value: "0"
+      - name: fetchTags
+        value: "true"
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      taskRef:
+        params:
+        - name: name
+          value: git-clone-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.2.6@sha256:26fc26a0bde8081ed4244024f56d4fe79dedca6a9ab37fbb09c24e34c02456fc
+        - name: kind
+          value: task
+        resolver: bundles
+      workspaces:
+      - name: basic-auth
+        workspace: git-auth
+      runAfter:
+      - init
+    - name: build-chart
+      params:
+      - name: CHART_CONTEXT
+        value: charts/kube-applier/
+      - name: CHART_VERSION
+        value: $(params.chart-version)
+      - name: APP_VERSION
+        value: on-pr-{{revision}}
+      - name: COMMIT_SHA
+        value: $(tasks.clone-repository.results.commit)
+      - name: IMAGE
+        value: $(params.output-image)
+      - name: OVERWRITE_CHART_NAME
+        value: "false"
+      - name: PUSH_CHART_TO_IMAGE_REPOSITORY
+        value: "false"
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: TAG_PREFIX
+        value: helm-
+      taskRef:
+        params:
+        - name: name
+          value: build-helm-chart-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-build-helm-chart-oci-ta:0.4.1@sha256:6f526d1490e7fbbffbab0baa93a30d3ca2c2461642077fc4dded6e9a58831b54
+        - name: kind
+          value: task
+        resolver: bundles
+      runAfter:
+      - clone-repository
+    workspaces:
+    - name: git-auth
+      optional: true
+    taskRunTemplate:
+      serviceAccountName: build-pipeline-rosa-seaplane-kube-applier
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
