@@ -1,6 +1,6 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
-# Runs for pull requests targeting main; this PipelineRun has no changed-path filter.
+# Intentionally run on all PR updates to main, even when chart paths are unchanged.
 metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/openshift-online/rosa-seaplane-kube-applier?rev={{revision}}
