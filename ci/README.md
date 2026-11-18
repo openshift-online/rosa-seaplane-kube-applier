@@ -24,3 +24,6 @@ ci-operator clones source under `/go/src` and sets `GOPATH=/go`; the module
 cache is explicitly outside that source tree. The CI scripts retain their
 isolated temporary caches. No cross-run cache persistence or measured speedup
 is implied by this setup.
+
+The `make helm-test` target lints, renders, and packages the source chart. It requires a
+Helm CLI and is run separately from the Go build-root scripts.
