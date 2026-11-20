@@ -5,6 +5,7 @@ between Amazon DynamoDB and the local Kubernetes apiserver. It reads Desire docu
 from DynamoDB and reconciles them against the cluster.
 
 At a high level:
+
 1. `ApplyDesire` — a kube manifest in `.spec.kubeContent` to server-side-apply.
    Success/failure is written to `.status.conditions["Successful"]`.
 2. `DeleteDesire` — a kube item in `.spec.targetItem` to delete.
@@ -24,7 +25,7 @@ scale far beyond our needs.
 
 ## API structure
 
-The API types live in `internal/api/kubeapplier`.
+The API types live in `api/kubeapplier`.
 
 Every `*Desire` API interacts with a single Kubernetes resource instance.
 We do not support lists, label selection, or list-all.
@@ -43,17 +44,20 @@ so the management cluster name determines which tables the binary connects to.
 
 Each `*Desire` API has a list of conditions. One of those conditions is the `Successful` condition.
 `Successful` is true if the operation succeeded:
+
 1. For `ApplyDesire` — a successful server-side-apply.
 2. For `DeleteDesire` — the item is no longer present in the cluster.
    This is NOT the same as the delete call succeeding; Kubernetes has finalizers.
 3. For `ReadDesire` — the list/watch succeeded and the informer synced.
 
 When the kube-apiserver call fails:
+
 - `.status.conditions["Successful"].status` is `False`
 - `.status.conditions["Successful"].reason` is `KubeAPIError`
 - `.status.conditions["Successful"].message` is the error from the kube-apiserver.
 
 When the kube-apiserver call cannot be executed:
+
 - `.status.conditions["Successful"].status` is `False`
 - `.status.conditions["Successful"].reason` is `PreCheckFailed`
 - `.status.conditions["Successful"].message` describes what prevented the call.
@@ -63,10 +67,10 @@ When the kube-apiserver call cannot be executed:
 Every management cluster has **six** DynamoDB tables with IAM-enforced directional isolation,
 grouped into two prefixes:
 
-| Prefix | Agent access | Backend access | Contents |
-|---|---|---|---|
-| `mc-{clusterName}-specs` | read-only | read-write | Spec documents written by the backend |
-| `mc-{clusterName}-status` | read-write | read-only | Status documents written by the agent |
+| Prefix                    | Agent access | Backend access | Contents                              |
+| ------------------------- | ------------ | -------------- | ------------------------------------- |
+| `mc-{clusterName}-specs`  | read-only    | read-write     | Spec documents written by the backend |
+| `mc-{clusterName}-status` | read-write   | read-only      | Status documents written by the agent |
 
 Each prefix has three tables (one per desire type):
 
@@ -87,9 +91,11 @@ receive real-time change notifications.
 ### Document IDs
 
 Document IDs are deterministic UUID v5 values generated from:
+
 ```
 uuid.NewSHA1(namespaceUUID, "{taskKey}/{group}/{version}/{resource}/{namespace}/{name}")
 ```
+
 The namespace UUID is a fixed constant shared between the agent and backend
 (defined in `internal/desireid`). The same document ID in both the specs and status
 tables links a spec to its status.
@@ -112,6 +118,7 @@ is stored as a JSON string in a separate top-level attribute (`spec_kubeContent`
 ### DynamoDB metadata
 
 Each desire type carries a `DynamoDBMetadata` struct with:
+
 - `DocumentID` — the DynamoDB partition key (UUID v5); stored via explicit `PutItem`, not as a struct attribute
 - `Version` — optimistic concurrency counter; incremented on every successful `Replace`
 - `UpdateTime` — wall-clock timestamp set on `Create` and `Replace`
@@ -130,6 +137,7 @@ The Go types live in `internal/database`.
 
 `KubeApplierDBClient` is the two-prefix handle. It exposes read-only accessors for
 the specs tables and full CRUD accessors for the status tables:
+
 - `ApplyDesireSpecs() SpecReader[ApplyDesire]` — read-only, specs tables
 - `DeleteDesireSpecs() SpecReader[DeleteDesire]` — read-only, specs tables
 - `ReadDesireSpecs() SpecReader[ReadDesire]` — read-only, specs tables
@@ -146,6 +154,7 @@ by CRUD methods and tested with `IsNotFoundError`, `IsPreconditionFailedError`,
 
 Informers are constructed via `informers.NewKubeApplierInformers(specsClient, streamsClient, specsPrefix)`.
 They watch the **specs tables only** via DynamoDB Streams. Each informer uses:
+
 - An initial `Scan` (List) to populate the cache on startup
 - A `dynamodbstreams` shard poller (Watch) to stream document changes in real time
 
@@ -170,6 +179,7 @@ is `gcp-hcp-kube-applier`.
 
 Uses the `ApplyDesire` informer to feed a sync function for `ApplyDesire` instances.
 When the sync loop runs it:
+
 1. Reads the spec from the specs table
 2. Decodes `spec.kubeContent` into an unstructured object
 3. Issues a server-side-apply with `force=true` via the dynamic client
@@ -186,6 +196,7 @@ This controller resyncs every 10 minutes (cooldown-gated).
 
 Uses the `DeleteDesire` informer to feed a sync function for `DeleteDesire` instances.
 When the sync loop runs it:
+
 1. Gets the `.spec.targetItem` from the cluster
    - If not found → writes `Successful=True` and returns
    - If found with a `deletionTimestamp` → writes `Successful=False / WaitingForDeletion` and returns
@@ -197,6 +208,7 @@ This controller resyncs every 60 seconds (to poll finalizer completion).
 ### ReadDesireKubernetesController
 
 One instance is created per `ReadDesire`. Each instance holds:
+
 1. The `.spec.targetItem`
 2. A single-item Kubernetes informer and lister
 3. A `KubeApplierDBClient` reference and the desire's document ID
@@ -316,12 +328,12 @@ End-to-end tests that run the full `app.Options.Run()` stack — informers, lead
 and all three controllers — against LocalStack (DynamoDB) and a Kind cluster
 (real kube-apiserver). Four scenarios are covered:
 
-| Test | What it verifies |
-|---|---|
-| `TestIntegration_ApplyDesire` | `ApplyDesire` spec → ConfigMap appears on Kind + `Successful=True` in status |
-| `TestIntegration_DeleteDesire` | Pre-created ConfigMap → `DeleteDesire` → ConfigMap gone + `Successful=True` |
-| `TestIntegration_ReadDesire` | Pre-created ConfigMap → `ReadDesire` → `status.kubeContent` populated |
-| `TestIntegration_OptimisticConcurrency` | Two concurrent `Replace` calls → exactly one `ErrPreconditionFailed` |
+| Test                                    | What it verifies                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| `TestIntegration_ApplyDesire`           | `ApplyDesire` spec → ConfigMap appears on Kind + `Successful=True` in status |
+| `TestIntegration_DeleteDesire`          | Pre-created ConfigMap → `DeleteDesire` → ConfigMap gone + `Successful=True`  |
+| `TestIntegration_ReadDesire`            | Pre-created ConfigMap → `ReadDesire` → `status.kubeContent` populated        |
+| `TestIntegration_OptimisticConcurrency` | Two concurrent `Replace` calls → exactly one `ErrPreconditionFailed`         |
 
 ```bash
 make localstack
