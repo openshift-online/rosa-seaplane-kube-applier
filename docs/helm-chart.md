@@ -75,6 +75,11 @@ resources. Before enabling the pipeline, the owning team must verify or configur
 - The existing `rosa-tenant` Konflux namespace, Application/Component, Pipelines-as-Code GitHub
   integration, and `build-pipeline-rosa-seaplane-kube-applier` service account are active for this
   repository.
+- Chart PipelineRuns keep the same Application/Component labels for PaC, but set
+  `pipelines.appstudio.openshift.io/type: chart` rather than `build`. Integration Service only
+  snapshots `type: build` runs. The chart artifact is Helm OCI, not a container image, so a
+  `build` label would feed it into Enterprise Contract. The controller image PipelineRuns remain
+  `type: build` and are the ones that create Snapshots.
 - The existing component image repository remains
   `quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier`. Chart SemVer tags and the
   `chart-on-pr-<sha>` / `chart-<sha>` traceability tags are written here. They must not collide

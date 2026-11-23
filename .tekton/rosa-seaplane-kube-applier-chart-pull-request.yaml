@@ -11,7 +11,7 @@ metadata:
   labels:
     appstudio.openshift.io/application: rosa-seaplane-kube-applier
     appstudio.openshift.io/component: rosa-seaplane-kube-applier
-    pipelines.appstudio.openshift.io/type: build
+    pipelines.appstudio.openshift.io/type: chart
   name: rosa-seaplane-kube-applier-chart-on-pull-request
   namespace: rosa-tenant
 spec:
