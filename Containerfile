@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/hi/go:latest-fips-builder@sha256:2944ca2126a611f87c3ff7a28d567bdd051cafb69a6a1f35e73c6f1f8bf72b9f AS builder
+FROM registry.access.redhat.com/hi/go:latest-fips-builder@sha256:ea524c060979cf725f7bca8e3cdd0ef2d99d07b780d734092bd0bde68900aa0f AS builder
 
 USER root
 
@@ -9,7 +9,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /kube-applier-aws .
 
-FROM registry.access.redhat.com/hi/go:latest-fips@sha256:5d4d54bffb06c691f14316f524b8ea40202c38314b624ee9d37a7668468eaf60
+FROM registry.access.redhat.com/hi/go:latest-fips@sha256:09bb6f946265bd6689f424c68827fa3719b09bb161db15e20aa28c3773f94389
 COPY --from=builder /kube-applier-aws /kube-applier-aws
 USER 65532:65532
 ENTRYPOINT ["/kube-applier-aws"]
