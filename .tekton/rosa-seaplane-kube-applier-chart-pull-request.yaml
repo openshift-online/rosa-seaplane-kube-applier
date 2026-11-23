@@ -110,7 +110,7 @@ spec:
       - name: OVERWRITE_CHART_NAME
         value: "false"
       - name: PUSH_CHART_TO_IMAGE_REPOSITORY
-        value: "false"
+        value: "true"
       - name: SOURCE_ARTIFACT
         value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
       - name: TAG_PREFIX

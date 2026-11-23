@@ -25,45 +25,47 @@ controller image pipeline's `:<revision>` tag. Pull requests use a unique
 The repository currently has no `helm-*` tags; its existing `v*` tags do not match the configured
 prefix, so main builds use the fallback until an immutable numeric `helm-X.Y` tag is introduced.
 
-The PipelineRun is configured to publish the OCI chart at this planned destination (the repository
-and its availability are not provisioned or verified by this change):
+The PipelineRuns keep `Chart.yaml` `name: kube-applier` (`OVERWRITE_CHART_NAME: false`) and publish
+the OCI chart into the existing component ImageRepository
+(`PUSH_CHART_TO_IMAGE_REPOSITORY: true`):
 
 ```text
-quay.io/redhat-user-workloads/rosa-tenant/kube-applier:<chart-version>
+quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier:<chart-version>
 ```
 
+That is the repository the `build-pipeline-rosa-seaplane-kube-applier` credentials can write. The
+default task path (`oci://<tenant>/<chart-name>`) would target
+`quay.io/redhat-user-workloads/rosa-tenant/kube-applier`, which this robot cannot create.
+
 Helm OCI tags replace SemVer build-metadata `+` with `_` in the registry, as Helm specifies. Use
-the original SemVer value in Helm dependency metadata. The task also copies the chart to a
-chart-specific tag in the component image repository (`chart-on-pr-<sha>` for pull requests,
-`chart-<sha>` on `main`) for Konflux build traceability. These tags intentionally differ from the
-controller image's `on-pr-<sha>` and `<revision>` tags so the chart copy cannot overwrite the
-controller image. Configure registry retention for the chart-specific PR tags and decide whether to
-expire the chart repository's `-pr.*` tags; the task does not provide registry-side tag expiry for
-its SemVer chart path.
+the original SemVer value in Helm commands. The task also copies the chart to a chart-specific tag
+in the same repository (`chart-on-pr-<sha>` for pull requests, `chart-<sha>` on `main`) for Konflux
+build traceability. These tags intentionally differ from the controller image's `on-pr-<sha>` and
+`<revision>` tags so the chart copy cannot overwrite the controller image. Configure registry
+retention for the chart-specific PR tags and the SemVer `-pr.*` tags; the task does not provide
+registry-side tag expiry for its SemVer chart path.
 
 ## Consumer reference
 
-The public `rosa-seaplane` repo uses Helm dependencies in `Chart.yaml`, OCI repositories, and
-committed `Chart.lock`/`.tgz` dependency archives (for example,
+The public `rosa-seaplane` repo vendors Helm dependencies as committed `Chart.lock`/`.tgz` archives
+(for example
 [`argocd/config/shared/karpenter/Chart.yaml`](https://github.com/openshift-online/rosa-seaplane/blob/main/argocd/config/shared/karpenter/Chart.yaml)
-and [`argocd/config/regional-cluster/thanos-operator/Chart.yaml`](https://github.com/openshift-online/rosa-seaplane/blob/main/argocd/config/regional-cluster/thanos-operator/Chart.yaml)). A consumer wrapper chart can declare:
+and
+[`argocd/config/regional-cluster/thanos-operator/Chart.yaml`](https://github.com/openshift-online/rosa-seaplane/blob/main/argocd/config/regional-cluster/thanos-operator/Chart.yaml)).
+The chart is stored as tags on the component repository (`oci://<IMAGE>:<version>`), not as
+`oci://<tenant>/<chart-name>`. After a successful `main` PipelineRun, take the version from the
+tag in its `IMAGE_URL` result. Helm OCI tags encode `+` as `_`; convert that underscore back to
+`+` in the `--version` value. Pull and vendor with:
 
-```yaml
-dependencies:
-  - name: kube-applier
-    version: "0.1.42+abcdef0"
-    repository: "oci://quay.io/redhat-user-workloads/rosa-tenant"
+```bash
+helm pull oci://quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier --version 0.1.42+abcdef0
 ```
 
-`0.1.42+abcdef0` is an illustrative version exercised in the disposable local-registry round trip;
-it is not a Quay publication or a Konflux build result. After a successful `main` PipelineRun and
-registry onboarding, take the version from the tag in its `IMAGE_URL` result. The OCI tag encodes
-`+` as `_`; convert that underscore back to `+` in the dependency's `version`, as shown.
-Then run `helm dependency update <wrapper-chart-directory>` and commit both `Chart.lock` and the
-downloaded `charts/kube-applier-<version>.tgz`, following the consumer repository's dependency-lock
-checks. Helm's OCI dependency rule is that `repository` omits the chart basename; Helm appends the
-dependency name and version. The chart can also be pulled directly with
-`helm pull oci://quay.io/redhat-user-workloads/rosa-tenant/kube-applier --version 0.1.42+abcdef0`.
+`0.1.42+abcdef0` is an illustrative version from the disposable local-registry round trip; it is
+not a Quay publication or a Konflux build result. Commit the downloaded `kube-applier-<version>.tgz`
+(and `Chart.lock` if the wrapper uses `helm dependency update`) following the consumer repository's
+dependency-lock checks. Helm's usual Chart.yaml OCI form (`repository` = tenant parent, `name` =
+chart basename) does not match this push path.
 
 ## Konflux and registry onboarding
 
@@ -74,22 +76,15 @@ resources. Before enabling the pipeline, the owning team must verify or configur
   integration, and `build-pipeline-rosa-seaplane-kube-applier` service account are active for this
   repository.
 - The existing component image repository remains
-  `quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier`; its credentials must
-  permit the task's traceability copy to the `chart-on-pr-<sha>` and `chart-<sha>` tags. These are
-  separate from the controller image tags published by the existing image PipelineRuns.
-- A Quay OCI repository at
-  `quay.io/redhat-user-workloads/rosa-tenant/kube-applier` exists (or can be created by the task's
-  credentials), is writable by the task, and is public/readable to `rosa-seaplane` consumers.
-  The task derives that chart path from the component image repository's tenant-level parent and
-  the `kube-applier` chart name. Do not assume the repository or required write permission already
-  exists.
-- Registry retention is agreed for temporary pull-request artifacts. Both the component's
-  `chart-on-pr-*` traceability tags and chart repository's `0.1.0-pr.*` SemVer tags are distinct
-  from main tags but remain in the registry until its cleanup policy removes them.
+  `quay.io/redhat-user-workloads/rosa-tenant/rosa-seaplane-kube-applier`. Chart SemVer tags and the
+  `chart-on-pr-<sha>` / `chart-<sha>` traceability tags are written here. They must not collide
+  with the controller image tags published by the existing image PipelineRuns.
+- Registry retention is agreed for temporary pull-request artifacts. Both the `chart-on-pr-*`
+  traceability tags and the SemVer `0.1.0-pr.*` tags are distinct from main tags but remain in the
+  registry until its cleanup policy removes them.
 
-No consumer change is included here. Once the artifact repository is provisioned and public, a
-consumer chart can add the dependency above and vendor its lock/archive through its existing
-`helm dependency update` workflow.
+No consumer change is included here. Once a main PipelineRun has published a chart tag, a consumer
+chart can pull that version and vendor the archive through its existing dependency-lock workflow.
 
 ## Local validation
 
